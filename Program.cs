@@ -1,8 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Xml.Serialization;
+using System.Xml.Linq;
 using BindingRedirectChecker.Models;
 
 namespace BindingRedirectChecker {
@@ -20,7 +19,7 @@ namespace BindingRedirectChecker {
                 Console.Write("Enter the full path to the config file that was generated when explicit binding redirects were removed: ");
                 configFilePathWithoutExplicitRedirects = Console.ReadLine();
             }
-            
+
             if (string.IsNullOrWhiteSpace(configFilePathWithExplicitRedirects) || string.IsNullOrWhiteSpace(configFilePathWithoutExplicitRedirects)) {
                 throw new Exception("You must specify both file paths.");
             }
@@ -28,26 +27,8 @@ namespace BindingRedirectChecker {
             configFilePathWithExplicitRedirects = configFilePathWithExplicitRedirects.Trim('"');
             configFilePathWithoutExplicitRedirects = configFilePathWithoutExplicitRedirects.Trim('"');
 
-            var serializer = new XmlSerializer(typeof(Configuration));
-
-            var readerWithExplicit = new StreamReader(configFilePathWithExplicitRedirects);
-            var deserializedWithExplicit = (Configuration) serializer.Deserialize(readerWithExplicit);
-            readerWithExplicit.Close();
-
-            var readerWithoutExplicit = new StreamReader(configFilePathWithoutExplicitRedirects);
-            var deserializedWithoutExplicit = (Configuration) serializer.Deserialize(readerWithoutExplicit);
-            readerWithoutExplicit.Close();
-
-            var bindingsWithExplicitRedirects = new Dictionary<string, BindingRedirectInfo>();
-            var bindingsWithoutExplicitRedirects = new Dictionary<string, BindingRedirectInfo>();
-
-            foreach (AssemblyBinding deserializedRedirect in deserializedWithExplicit.Runtime.AssemblyBinding.OrderBy(x => x.DependentAssembly.AssemblyIdentity.Name)) {
-                bindingsWithExplicitRedirects.Add(deserializedRedirect.DependentAssembly.AssemblyIdentity.Name, new BindingRedirectInfo {OldVersion = deserializedRedirect.DependentAssembly.BindingRedirect.OldVersion, NewVersion = deserializedRedirect.DependentAssembly.BindingRedirect.NewVersion});
-            }
-
-            foreach (AssemblyBinding deserializedRedirect in deserializedWithoutExplicit.Runtime.AssemblyBinding.OrderBy(x => x.DependentAssembly.AssemblyIdentity.Name)) {
-                bindingsWithoutExplicitRedirects.Add(deserializedRedirect.DependentAssembly.AssemblyIdentity.Name, new BindingRedirectInfo {OldVersion = deserializedRedirect.DependentAssembly.BindingRedirect.OldVersion, NewVersion = deserializedRedirect.DependentAssembly.BindingRedirect.NewVersion});
-            }
+            var bindingsWithExplicitRedirects = DeserializeConfigFileAndBuildDictionary(configFilePathWithExplicitRedirects);
+            var bindingsWithoutExplicitRedirects = DeserializeConfigFileAndBuildDictionary(configFilePathWithoutExplicitRedirects);
 
             if (bindingsWithExplicitRedirects.Count > bindingsWithoutExplicitRedirects.Count) {
                 foreach (var bindingWithExplicitRedirect in bindingsWithExplicitRedirects) {
@@ -57,11 +38,9 @@ namespace BindingRedirectChecker {
                         Console.WriteLine($"A binding redirect for {bindingWithExplicitRedirect.Key} was only found when explicitly set. This means you shouldn't need it, but you should confirm that with runtime checking.");
                         continue;
                     }
-                    
-                    if (matchingBindingWithoutExplicitRedirect != bindingWithExplicitRedirect.Value) {
-                        Console.WriteLine($"Binding redirect for {bindingWithExplicitRedirect.Key} is different.");
-                        Console.WriteLine($"With explicit redirect: OldVersion={bindingWithExplicitRedirect.Value.OldVersion}, NewVersion={bindingWithExplicitRedirect.Value.NewVersion}");
-                        Console.WriteLine($"Without explicit redirect: OldVersion={matchingBindingWithoutExplicitRedirect.OldVersion}, NewVersion={matchingBindingWithoutExplicitRedirect.NewVersion}");
+
+                    if (bindingWithExplicitRedirect.Value != matchingBindingWithoutExplicitRedirect) {
+                        DisplayDifferencesInBinding(bindingWithExplicitRedirect.Key, bindingWithExplicitRedirect.Value, matchingBindingWithoutExplicitRedirect);
                     }
                 }
             }
@@ -73,15 +52,42 @@ namespace BindingRedirectChecker {
                         Console.WriteLine($"A binding redirect for {bindingWithoutExplicitRedirect.Key} was only found when not explicitly set. This should be fine because that just means you explicitly set it when you didn't need to, but you should confirm that with runtime checking.");
                         continue;
                     }
+
                     if (matchingBindingWithExplicitRedirect != bindingWithoutExplicitRedirect.Value) {
-                        Console.WriteLine($"Binding redirect for {bindingWithoutExplicitRedirect.Key} is different.");
-                        Console.WriteLine($"With explicit redirect: OldVersion={matchingBindingWithExplicitRedirect.OldVersion}, NewVersion={matchingBindingWithExplicitRedirect.NewVersion}");
-                        Console.WriteLine($"Without explicit redirect: OldVersion={bindingWithoutExplicitRedirect.Value.OldVersion}, NewVersion={bindingWithoutExplicitRedirect.Value.NewVersion}");
+                        DisplayDifferencesInBinding(bindingWithoutExplicitRedirect.Key, matchingBindingWithExplicitRedirect, bindingWithoutExplicitRedirect.Value);
                     }
                 }
             }
 
             Console.WriteLine("Finished");
+        }
+
+        private static SortedDictionary<string, BindingRedirectInfo> DeserializeConfigFileAndBuildDictionary(string pathToConfigFile) {
+            var assembliesWithBindingRedirectInfo = new SortedDictionary<string, BindingRedirectInfo>();
+
+            var doc = XDocument.Load(pathToConfigFile);
+            XNamespace ns = "urn:schemas-microsoft-com:asm.v1";
+            var assemblyBindingNodes = doc.Descendants(ns + "assemblyBinding");
+            foreach (var assemblyBindingNode in assemblyBindingNodes) {
+                var dependentAssemblyNodes = assemblyBindingNode.Descendants(ns + "dependentAssembly");
+                foreach (var dependentAssemblyNode in dependentAssemblyNodes) {
+                    var assemblyIdentityNode = dependentAssemblyNode.Descendants(ns + "assemblyIdentity");
+                    var bindingRedirectNode = dependentAssemblyNode.Descendants(ns + "bindingRedirect");
+
+                    var assemblyName = assemblyIdentityNode.Attributes("name").First().Value;
+                    var oldVersion = bindingRedirectNode.Attributes("oldVersion").First().Value;
+                    var newVersion = bindingRedirectNode.Attributes("newVersion").First().Value;
+                    assembliesWithBindingRedirectInfo.Add(assemblyName, new BindingRedirectInfo {OldVersion = oldVersion, NewVersion = newVersion});
+                }
+            }
+
+            return assembliesWithBindingRedirectInfo;
+        }
+
+        private static void DisplayDifferencesInBinding(string assemblyName, BindingRedirectInfo bindingWithExplicitRedirect, BindingRedirectInfo bindingWithoutExplicitRedirect) {
+            Console.WriteLine($"Binding redirect for {assemblyName} is different.");
+            Console.WriteLine($"With explicit redirect: OldVersion={bindingWithExplicitRedirect.OldVersion}, NewVersion={bindingWithExplicitRedirect.NewVersion}");
+            Console.WriteLine($"Without explicit redirect: OldVersion={bindingWithoutExplicitRedirect.OldVersion}, NewVersion={bindingWithoutExplicitRedirect.NewVersion}");
         }
     }
 }
