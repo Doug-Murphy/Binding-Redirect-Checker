@@ -1,14 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Xml.Linq;
 using BindingRedirectChecker.Models;
 
 namespace BindingRedirectChecker {
     internal class Program {
-        private static void Main(string[] args) {
+        private static async Task Main(string[] args) {
             string configFilePathWithExplicitRedirects = null;
             string configFilePathWithoutExplicitRedirects = null;
+
             if (args.Length == 2) {
                 configFilePathWithExplicitRedirects = args[0];
                 configFilePathWithoutExplicitRedirects = args[1];
@@ -21,21 +23,26 @@ namespace BindingRedirectChecker {
             }
 
             if (string.IsNullOrWhiteSpace(configFilePathWithExplicitRedirects) || string.IsNullOrWhiteSpace(configFilePathWithoutExplicitRedirects)) {
-                throw new Exception("You must specify both file paths.");
+                throw new InvalidOperationException("You must specify both file paths.");
             }
 
             configFilePathWithExplicitRedirects = configFilePathWithExplicitRedirects.Trim('"');
             configFilePathWithoutExplicitRedirects = configFilePathWithoutExplicitRedirects.Trim('"');
 
-            var bindingsWithExplicitRedirects = DeserializeConfigFileAndBuildDictionary(configFilePathWithExplicitRedirects);
-            var bindingsWithoutExplicitRedirects = DeserializeConfigFileAndBuildDictionary(configFilePathWithoutExplicitRedirects);
+            var bindingsWithExplicitRedirectsTask = Task.Run(() => DeserializeConfigFileAndBuildDictionary(configFilePathWithExplicitRedirects));
+            var bindingsWithoutExplicitRedirectsTask = Task.Run(() => DeserializeConfigFileAndBuildDictionary(configFilePathWithoutExplicitRedirects));
+
+            await Task.WhenAll(bindingsWithExplicitRedirectsTask, bindingsWithoutExplicitRedirectsTask);
+
+            SortedDictionary<string, BindingRedirectInfo> bindingsWithExplicitRedirects = await bindingsWithExplicitRedirectsTask;
+            SortedDictionary<string, BindingRedirectInfo> bindingsWithoutExplicitRedirects = await bindingsWithoutExplicitRedirectsTask;
 
             if (bindingsWithExplicitRedirects.Count > bindingsWithoutExplicitRedirects.Count) {
                 foreach (var bindingWithExplicitRedirect in bindingsWithExplicitRedirects) {
                     var matchingBindingWithoutExplicitRedirect = bindingsWithoutExplicitRedirects.FirstOrDefault(x => x.Key == bindingWithExplicitRedirect.Key).Value;
 
                     if (matchingBindingWithoutExplicitRedirect == null) {
-                        Console.WriteLine($"A binding redirect for {bindingWithExplicitRedirect.Key} was only found when explicitly set. This means you shouldn't need it, but you should confirm that with runtime checking.");
+                        Console.WriteLine($"A binding redirect for {bindingWithExplicitRedirect.Key} directing versions {bindingWithExplicitRedirect.Value.OldVersion} to {bindingWithExplicitRedirect.Value.NewVersion} was only found when explicitly set. This means you shouldn't need it, but you should confirm that with runtime checking.");
                         continue;
                     }
 
@@ -49,7 +56,7 @@ namespace BindingRedirectChecker {
                     var matchingBindingWithExplicitRedirect = bindingsWithExplicitRedirects.FirstOrDefault(x => x.Key == bindingWithoutExplicitRedirect.Key).Value;
 
                     if (matchingBindingWithExplicitRedirect == null) {
-                        Console.WriteLine($"A binding redirect for {bindingWithoutExplicitRedirect.Key} was only found when not explicitly set. This should be fine because that just means you explicitly set it when you didn't need to, but you should confirm that with runtime checking.");
+                        Console.WriteLine($"A binding redirect for {bindingWithoutExplicitRedirect.Key} directing versions {bindingWithoutExplicitRedirect.Value.OldVersion} to {bindingWithoutExplicitRedirect.Value.NewVersion} was only found when not explicitly set. This should not happen, but it should be fine. It just means you did not explicitly set it and you didn't need to, but you should confirm that with runtime checking.");
                         continue;
                     }
 
