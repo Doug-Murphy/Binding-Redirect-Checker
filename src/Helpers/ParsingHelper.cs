@@ -29,33 +29,29 @@ namespace BindingRedirectChecker.Helpers {
 
         public ComparisonResults CompareParsedConfigFiles(SortedDictionary<string, BindingRedirectInfo> bindingsWithExplicitRedirects, SortedDictionary<string, BindingRedirectInfo> bindingsWithoutExplicitRedirects) {
             var results = new ComparisonResults();
+            var processedAssemblies = new HashSet<string>();
 
-            //TODO: Don't use .Count to determine which to iterate through
-            //This has a gap about if there happen to be the same #, yet the binding redirects are different
-            //Ex: With explicit contains one less binding than without (shouldn't be possible, but let's say Newtonsoft) and without explicit contains one less binding than with (let's say RestSharp).
-            //We won't be showing the proper comparison then.
-            if (bindingsWithExplicitRedirects.Count > bindingsWithoutExplicitRedirects.Count) {
-                foreach (var bindingWithExplicitRedirect in bindingsWithExplicitRedirects) {
-                    var matchingBindingWithoutExplicitRedirect = bindingsWithoutExplicitRedirects.FirstOrDefault(x => x.Key == bindingWithExplicitRedirect.Key).Value;
+            foreach (var bindingWithExplicitRedirect in bindingsWithExplicitRedirects) {
+                var matchingBindingWithoutExplicitRedirect = bindingsWithoutExplicitRedirects.FirstOrDefault(x => x.Key == bindingWithExplicitRedirect.Key).Value;
 
-                    if (matchingBindingWithoutExplicitRedirect == null) {
-                        results.BindingsOnlyWhenExplicitlySpecified.Add(bindingWithExplicitRedirect.Value);
-                    }
-                    else if (bindingWithExplicitRedirect.Value != matchingBindingWithoutExplicitRedirect) {
-                        results.BindingsWithDifferences.Add((bindingWithExplicitRedirect.Value, matchingBindingWithoutExplicitRedirect));
-                    }
+                if (matchingBindingWithoutExplicitRedirect == null) {
+                    processedAssemblies.Add(bindingWithExplicitRedirect.Key);
+                    results.BindingsOnlyWhenExplicitlySpecified.Add(bindingWithExplicitRedirect.Value);
+                }
+                else if (bindingWithExplicitRedirect.Value != matchingBindingWithoutExplicitRedirect) {
+                    processedAssemblies.Add(bindingWithExplicitRedirect.Key);
+                    results.BindingsWithDifferences.Add((bindingWithExplicitRedirect.Value, matchingBindingWithoutExplicitRedirect));
                 }
             }
-            else {
-                foreach (var bindingWithoutExplicitRedirect in bindingsWithoutExplicitRedirects) {
-                    var matchingBindingWithExplicitRedirect = bindingsWithExplicitRedirects.FirstOrDefault(x => x.Key == bindingWithoutExplicitRedirect.Key).Value;
 
-                    if (matchingBindingWithExplicitRedirect == null) {
-                        results.BindingsOnlyWhenNotExplicitlySpecified.Add(bindingWithoutExplicitRedirect.Value);
-                    }
-                    else if (matchingBindingWithExplicitRedirect != bindingWithoutExplicitRedirect.Value) {
-                        results.BindingsWithDifferences.Add((matchingBindingWithExplicitRedirect, bindingWithoutExplicitRedirect.Value));
-                    }
+            foreach (var bindingWithoutExplicitRedirect in bindingsWithoutExplicitRedirects.Where(x => !processedAssemblies.Contains(x.Key))) {
+                var matchingBindingWithExplicitRedirect = bindingsWithExplicitRedirects.FirstOrDefault(x => x.Key == bindingWithoutExplicitRedirect.Key).Value;
+
+                if (matchingBindingWithExplicitRedirect == null) {
+                    results.BindingsOnlyWhenNotExplicitlySpecified.Add(bindingWithoutExplicitRedirect.Value);
+                }
+                else if (matchingBindingWithExplicitRedirect != bindingWithoutExplicitRedirect.Value) {
+                    results.BindingsWithDifferences.Add((matchingBindingWithExplicitRedirect, bindingWithoutExplicitRedirect.Value));
                 }
             }
 

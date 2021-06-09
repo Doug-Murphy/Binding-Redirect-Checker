@@ -30,13 +30,13 @@ namespace BindingRedirectChecker.Tests.HelpersTests {
             Assert.That(comparisonResults.BindingsOnlyWhenNotExplicitlySpecified, Has.Count.EqualTo(1));
             Assert.That(comparisonResults.BindingsWithDifferences, Is.Empty);
 
-            Assert.That(comparisonResults.BindingsOnlyWhenExplicitlySpecified.First().AssemblyName, Is.EqualTo("System.Reflection"));
-            Assert.That(comparisonResults.BindingsOnlyWhenExplicitlySpecified.First().OldVersion, Is.EqualTo("0.0.0.0-4.1.1.0"));
-            Assert.That(comparisonResults.BindingsOnlyWhenExplicitlySpecified.First().NewVersion, Is.EqualTo("4.1.1.0"));
+            Assert.That(comparisonResults.BindingsOnlyWhenExplicitlySpecified.First().AssemblyName, Is.EqualTo("Newtonsoft.Json"));
+            Assert.That(comparisonResults.BindingsOnlyWhenExplicitlySpecified.First().OldVersion, Is.EqualTo("0.0.0.0-12.0.0.0"));
+            Assert.That(comparisonResults.BindingsOnlyWhenExplicitlySpecified.First().NewVersion, Is.EqualTo("12.0.0.0"));
 
-            Assert.That(comparisonResults.BindingsOnlyWhenNotExplicitlySpecified.First().AssemblyName, Is.EqualTo("Newtonsoft.Json"));
-            Assert.That(comparisonResults.BindingsOnlyWhenNotExplicitlySpecified.First().OldVersion, Is.EqualTo("0.0.0.0-13.0.0.0"));
-            Assert.That(comparisonResults.BindingsOnlyWhenNotExplicitlySpecified.First().NewVersion, Is.EqualTo("13.0.0.0"));
+            Assert.That(comparisonResults.BindingsOnlyWhenNotExplicitlySpecified.First().AssemblyName, Is.EqualTo("System.Reflection"));
+            Assert.That(comparisonResults.BindingsOnlyWhenNotExplicitlySpecified.First().OldVersion, Is.EqualTo("0.0.0.0-4.1.1.0"));
+            Assert.That(comparisonResults.BindingsOnlyWhenNotExplicitlySpecified.First().NewVersion, Is.EqualTo("4.1.1.0"));
         }
 
 
