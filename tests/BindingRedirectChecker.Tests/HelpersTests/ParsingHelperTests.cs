@@ -12,6 +12,30 @@ namespace BindingRedirectChecker.Tests.HelpersTests {
             _parsingHelper = new ParsingHelper();
         }
 
+        #region Parsing Tests
+
+        [Test(Description = "When output config file contains only one <assemblyBinding> node, file is parsed successfully.")]
+        public void Test_Parsing_Single_AssemblyBinding_Node() {
+            SortedDictionary<string, BindingRedirectInfo> parsedDictionary = _parsingHelper.DeserializeConfigFileAndBuildDictionary("../../../TestFiles/test_output_single_assemblyBinding.config");
+
+            Assert.That(parsedDictionary, Has.Count.EqualTo(2));
+            CollectionAssert.Contains(parsedDictionary, new KeyValuePair<string, BindingRedirectInfo>("Newtonsoft.Json", new BindingRedirectInfo { AssemblyName = "Newtonsoft.Json", NewVersion = "13.0.0.0", OldVersion = "0.0.0.0-13.0.0.0" }));
+            CollectionAssert.Contains(parsedDictionary, new KeyValuePair<string, BindingRedirectInfo>("office", new BindingRedirectInfo { AssemblyName = "office", NewVersion = "14.0.0.0", OldVersion = "0.0.0.0-14.0.0.0" }));
+        }
+
+        [Test(Description = "When output config file contains two <assemblyBinding> nodes, file is parsed successfully.")]
+        public void Test_Parsing_Multiple_AssemblyBinding_Node() {
+            SortedDictionary<string, BindingRedirectInfo> parsedDictionary = _parsingHelper.DeserializeConfigFileAndBuildDictionary("../../../TestFiles/test_output_multiple_assemblyBinding.config");
+
+            Assert.That(parsedDictionary, Has.Count.EqualTo(2));
+            CollectionAssert.Contains(parsedDictionary, new KeyValuePair<string, BindingRedirectInfo>("Newtonsoft.Json", new BindingRedirectInfo { AssemblyName = "Newtonsoft.Json", NewVersion = "13.0.0.0", OldVersion = "0.0.0.0-13.0.0.0" }));
+            CollectionAssert.Contains(parsedDictionary, new KeyValuePair<string, BindingRedirectInfo>("office", new BindingRedirectInfo { AssemblyName = "office", NewVersion = "14.0.0.0", OldVersion = "0.0.0.0-14.0.0.0" }));
+        }
+
+        #endregion
+
+        #region Comparison Tests
+
         [Test(Description = "Each config file contains one assembly binding redirect that isn't in the other.")]
         public void Test_CompareParsedConfigFiles_Each_Config_With_A_Unique_Redirect() {
             var bindingsWithExplicitRedirects = new SortedDictionary<string, BindingRedirectInfo> {
@@ -118,5 +142,7 @@ namespace BindingRedirectChecker.Tests.HelpersTests {
 
             Assert.That(comparisonResults.BindingsWithDifferences, Does.Not.Contain((new BindingRedirectInfo { AssemblyName = "RestSharp", OldVersion = "0.0.0.0-106.0.1.0", NewVersion = "106.0.1.0" }, new BindingRedirectInfo { AssemblyName = "RestSharp", OldVersion = "0.0.0.0-106.0.1.0", NewVersion = "106.0.1.0" })));
         }
+
+        #endregion
     }
 }

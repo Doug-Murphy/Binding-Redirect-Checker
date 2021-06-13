@@ -21,4 +21,10 @@
     <ProjectReference Include="..\..\src\BindingRedirectChecker.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="TestFiles\**\*.config">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
